@@ -45,7 +45,7 @@ storing state.
 ### What We Know So Far
 
 ```rust
-  sp_io::TestExternalities::new_empty().execute_with(| | {
+  sp_io::TestExternalities::new_empty().execute_with(|| {
         sp_io::storage::get(..);
     });
 ```
@@ -648,15 +648,15 @@ Notes:
 
 ```rust
 // spawn a new layer.
-with_storage_layer(| | {
-let foo = sp_io::storage::read(b"foo");
-sp_io::storage::set(b"bar", foo);
+with_storage_layer(|| {
+    let foo = sp_io::storage::read(b"foo");
+    sp_io::storage::set(b"bar", foo);
 
-if cond {
-Err("this will be reverted")
-} else {
-Ok("This will be commit to the top overlay")
-}
+    if cond {
+        Err("this will be reverted")
+    } else {
+        Ok("This will be commit to the top overlay")
+    }
 })
 ```
 
@@ -682,21 +682,21 @@ Notes:
 - It is not free, thus it is attack-able.
 
 ```rust
-with_storage_layer(| | {
-let foo = sp_io::storage::read(b"foo");
-with_storage_layer( | | {
-sp_io::storage::set(b"foo", b"foo");
-with_storage_layer( | | {
-sp_io::storage::set(b"bar", foo);
-with_storage_layer( | | {
-sp_io::storage::set(b"foo", "damn");
-Err("damn")
-})
-Ok("what")
-})
-Err("the")
-});
-Ok("hell")
+with_storage_layer(|| {
+    let foo = sp_io::storage::read(b"foo");
+    with_storage_layer(|| {
+        sp_io::storage::set(b"foo", b"foo");
+        with_storage_layer(|| {
+            sp_io::storage::set(b"bar", foo);
+            with_storage_layer(|| {
+                sp_io::storage::set(b"foo", "damn");
+                Err("damn")
+            })
+            Ok("what")
+        })
+        Err("the")
+    });
+    Ok("hell")
 })
 ```
 
@@ -764,8 +764,8 @@ let x = sp_io::storage::get(b"foo");
 
 ```rust
 // ✅
-SomeExternalities.execute_with(| | {
-let x = sp_io::storage::get(b"foo");
+SomeExternalities.execute_with(|| {
+    let x = sp_io::storage::get(b"foo");
 });
 ```
 
