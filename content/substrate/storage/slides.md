@@ -7,6 +7,22 @@ duration: 60mins
 
 ---
 
+## Overview
+
+- How substrate based chains store data.
+- Why blockchains/substrate merkelize storage?
+- Traversing the Trie.
+- Merkle Proofs.
+- Avoiding unbalanced Tree.
+- Caching state.
+- State pruning.
+
+Note:
+Expectation is at end of this lecture, student understands better what design considerations they need to take while
+storing state.
+
+---
+
 ## What We Know So Far
 
 <img style="width: 900px;" src="./img/dev-storage-1.svg" />
@@ -15,11 +31,28 @@ duration: 60mins
 
 ### What We Know So Far
 
-- Recall that at the `sp_io` layer, you have **opaque keys and values**.
+- Recall that at the `sp_io` layer (`substrate/primitives/io/`), you have **opaque keys and values**.
 
-- `sp_io::storage::get(vec![8, 2])`;
-  - `vec![8, 2]` is a "storage key".
-- `sp_io::storage::set(vec![2, 9], vec![42, 33])`;
+```rust
+    let storage_key = vec![8, 2];
+    sp_io::storage::get(storage_key);
+    sp_io::storage::set(storage_key, vec![42, 33]);
+
+```
+
+---v
+
+### What We Know So Far
+
+```rust
+  sp_io::TestExternalities::new_empty().execute_with(| | {
+        sp_io::storage::get(..);
+    });
+```
+
+Notes:
+
+- TestExternalities mimic a client.
 
 ---v
 
@@ -32,18 +65,11 @@ Nomenclature (with some simplification):
 Notes:
 
 - In Substrate, a type needs to provide the environment in which host functions are provided, and can be executed.
-- We call this an "externality environment", represented by [`trait Externalities`](https://paritytech.github.io/substrate/master/sp_externalities/trait.Externalities.html).
+- We call this an "externality environment", represented
+  by [`trait Externalities`](https://paritytech.github.io/substrate/master/sp_externalities/trait.Externalities.html).
 - By convention, an externality has a "**backend**" that is in charge of dealing with storage.
-
----v
-
-### What We Know So Far
-
-```rust
-sp_io::TestExternalities::new_empty().execute_with(|| {
-  sp_io::storage::get(..);
-});
-```
+- Externality is a trait that provides functionality to interact with storage and other extensions registered in the
+  node.
 
 ---v
 
@@ -53,9 +79,9 @@ sp_io::TestExternalities::new_empty().execute_with(|| {
 
 ---
 
-## Key Value
+## Simple key value storage
 
-- How about a key-value storage externality? why not? 🙈
+- How about a key-value storage externality? why not? 🙈 
 
 ---v
 
@@ -69,7 +95,7 @@ sp_io::TestExternalities::new_empty().execute_with(|| {
 
 - "_Storage keys_" (whatever you pass to `sp_io::storage`) directly maps to "_database keys_".
 - O(1) read and write.
-- Hash all the data to get the root.
+- Concatenate all data and hash to get the root.
 
 Notes:
 
@@ -80,9 +106,19 @@ database.
 
 ---v
 
+## Key Value
+
+Spoiler: In reality, substrate and most other blockchains merklize their storage.
+ 
+> But Why?
+
+---v
+
 ### Key Value
 
-- If alice only has this root, how can I prove to her how much balance she has?
+- Suppose there is a large database.
+- Alice wants to lookup her balance from this database.
+- How can Alice verify the balance she receives from a full node is correct?
 
 SEND HER THE WHOLE DATABASE 😱.
 
@@ -102,15 +138,14 @@ Alice is representing a light client, I represent a full node.
 
 ## Substrate Storage: Merklized
 
-- This brings us again to why blockchain based systems tend to "merkelize" their storage.
-
----v
-
-### Merklized
-
 > Substrate uses a base-16, (patricia) radix merkle trie.
 
+Notes: 
+- Find the code at [paritytech/trie](https://github.com/paritytech/trie).
+
 ---v
+
+### Recap
 
 <pba-cols>
 <pba-col>
@@ -135,6 +170,8 @@ flowchart TD
 </pba-cols>
 
 ---v
+
+### Recap
 
 <pba-cols>
 <pba-col>
@@ -172,9 +209,12 @@ flowchart TD
 
 Notes:
 
-this is how we encode key value based data in a trie.
+- this is how we encode key value based data in a trie.
+- Optimization of simple trie,
 
 ---v
+
+### Recap
 
 <pba-cols>
 <pba-col>
@@ -238,8 +278,8 @@ Namely:
 
 ### Merklized
 
-- Substrate does in fact use a key-value based database under the hood..
-- In order to store trie nodes, not direct storage keys!
+- Substrate does in fact use a key-value based database under the hood.
+- But this KV based DB is used to store the trie nodes, not directly the storage keys.
 
 <br />
 
@@ -285,7 +325,7 @@ simplification.
 ## Trie Walking Example
 
 - We know the state-root at a given block `n`.
-- assume this is a base-26, patricia trie.
+- Assume this is a base-26, patricia trie.
   English alphabet is the key-scope.
 - Let's see the steps needed to read `balances_alice` from the storage.
 
@@ -313,7 +353,8 @@ simplification.
 
 ## Merklized: Proofs
 
-- If alice only has this root, how can I prove to her how much balance she has?
+Back to our question
+> If alice only has this root, how can she verify her balance is right?
 
 ---v
 
@@ -329,7 +370,8 @@ Receiver will hash the root node, and check it against a publicly known storage 
 
 This differs slightly from how actual proof generation might work in the code.
 
-In general, you have a tradeoff: send more data, but require less hashing on Alice, or opposite (this is what we call "compact proof").
+In general, you have a tradeoff: send more data, but require less hashing on Alice, or opposite (this is what we call "
+compact proof").
 
 ---v
 
@@ -343,7 +385,7 @@ In general, you have a tradeoff: send more data, but require less hashing on Ali
 
 <div>
 
-- Storage key (whatever you pass to `sp_io`) is the path on the trie.
+- Storage key (`balances_alice`) is the path on the trie.
 
 </div>
 <!-- .element: class="fragment" -->
@@ -358,7 +400,7 @@ In general, you have a tradeoff: send more data, but require less hashing on Ali
 <div>
 
 - Intermediary (branch) nodes could contain values.
-  - `:code` contains some value, `:code:more` can also contain value.
+    - `:code` contains some value, `:code:more` can also contain value.
 
 </div>
 
@@ -378,6 +420,12 @@ how many database access would do you think it is?
 
 we will explain this in a few slides, but assuming an order `N` tree, and assuming it is balanced,
 it will be `O(LOG_n)`.
+
+---
+
+## Substrate Storage: The Updated Picture
+
+<img style="width: 1000px;" src="./img/dev-storage-3.svg" />
 
 ---
 
@@ -415,7 +463,8 @@ For example, with binary, with 3 IO, we can reach only 8 items, but with radix-8
 
 So why should not choose a very wide tree?
 Because the wider you make the tree, the bigger each node gets, because it has to store more hashes.
-At some point, this start to screw with both the proof size and the cost of reading/writing/encoding/decoding all these nodes.
+At some point, this start to screw with both the proof size and the cost of reading/writing/encoding/decoding all these
+nodes.
 
 ---v
 
@@ -425,14 +474,14 @@ At some point, this start to screw with both the proof size and the cost of read
 
 Note:
 
-Here's a different way to represent it; the nodes are bigger on the base-16 trie.
+Here's a different way to represent it; the nodes are bigger on the base-8 trie.
 
 ---v
 
 ### Base 2, Base 16, Base-26?
 
 - base-2: Small proofs, more nodes.
-- base-8: Bigger proofs, less nodes.
+- base-26: Bigger proofs, less nodes.
 
 ✅ 16 has been benchmarked and studies years ago as a good middle-ground.
 
@@ -466,8 +515,8 @@ Notes:
 ## WAIT A MINUTE... 🤔
 
 - Two common scenarios that merkle proofs are kinda unfair:
-  - If the one of the parent nodes has some large data.
-  - If you want to prove the deletion/non-existence of a leaf node.
+    - If the one of the parent nodes has some large data.
+    - If you want to prove the deletion/non-existence of a leaf node.
 
 ---v
 
@@ -484,8 +533,8 @@ New "tie format" 🌈:
 
 ```rust
 struct RuntimeVersion {
-  ...
-  state_version: 0,
+    ...
+    state_version: 0,
 }
 ```
 
@@ -508,12 +557,6 @@ One can assume that the green node is like any other node in the trie.
 
 ---
 
-## Substrate Storage: The Updated Picture
-
-<img style="width: 1000px;" src="./img/dev-storage-3.svg" />
-
----
-
 ## WAIT A MINUTE... 🤔
 
 - We rarely care about state root and all the trie shenanigans before the end of the block...
@@ -524,7 +567,8 @@ One can assume that the green node is like any other node in the trie.
 
 Notes:
 
-In other words, one should care too much about updating a "trie" and all of its hashing details while the block is still being executed?
+In other words, one should care too much about updating a "trie" and all of its hashing details while the block is still
+being executed?
 All of that can be delayed.
 
 ---
@@ -539,10 +583,10 @@ All of that can be delayed.
 ### Overlay
 
 - Almost identical semantic to your CPU cache:
-  - <!-- .element: class="fragment" --> Once you read a value, it stays here, and can be re-read for cheap.
-  - <!-- .element: class="fragment" --> Once you write a value, it will only be written here.
-    - It can be read for cheap.
-  - <!-- .element: class="fragment" --> All writes are flushed at the end of the runtime api call.
+    - <!-- .element: class="fragment" --> Once you read a value, it stays here, and can be re-read for cheap.
+    - <!-- .element: class="fragment" --> Once you write a value, it will only be written here.
+        - It can be read for cheap.
+    - <!-- .element: class="fragment" --> All writes are flushed at the end of the runtime api call.
 - <!-- .element: class="fragment" --> No race conditions as runtime is single-threaded.
 
 ---v
@@ -591,7 +635,8 @@ All of that can be delayed.
 Notes:
 
 - In your code, you often have an option to either pass stack variables around, or re-read code from `sp-io`.
-  Most often, this is a micro-optimization that won't matter too much, but in general you should know that the former is more performant, as won't go the the host at all.
+  Most often, this is a micro-optimization that won't matter too much, but in general you should know that the former is
+  more performant, as won't go the the host at all.
 - A deletion is basically a write to `null`.
 
 ---v
@@ -603,15 +648,15 @@ Notes:
 
 ```rust
 // spawn a new layer.
-with_storage_layer(|| {
-    let foo = sp_io::storage::read(b"foo");
-    sp_io::storage::set(b"bar", foo);
+with_storage_layer(| | {
+let foo = sp_io::storage::read(b"foo");
+sp_io::storage::set(b"bar", foo);
 
-    if cond {
-        Err("this will be reverted")
-    } else {
-        Ok("This will be commit to the top overlay")
-    }
+if cond {
+Err("this will be reverted")
+} else {
+Ok("This will be commit to the top overlay")
+}
 })
 ```
 
@@ -637,21 +682,21 @@ Notes:
 - It is not free, thus it is attack-able.
 
 ```rust
-with_storage_layer(|| {
-    let foo = sp_io::storage::read(b"foo");
-    with_storage_layer(|| {
-        sp_io::storage::set(b"foo", b"foo");
-        with_storage_layer(|| {
-            sp_io::storage::set(b"bar", foo);
-            with_storage_layer(|| {
-                sp_io::storage::set(b"foo", "damn");
-                Err("damn")
-            })
-            Ok("what")
-        })
-        Err("the")
-    });
-    Ok("hell")
+with_storage_layer(| | {
+let foo = sp_io::storage::read(b"foo");
+with_storage_layer( | | {
+sp_io::storage::set(b"foo", b"foo");
+with_storage_layer( | | {
+sp_io::storage::set(b"bar", foo);
+with_storage_layer( | | {
+sp_io::storage::set(b"foo", "damn");
+Err("damn")
+})
+Ok("what")
+})
+Err("the")
+});
+Ok("hell")
 })
 ```
 
@@ -665,7 +710,8 @@ with_storage_layer(|| {
 Notes:
 
 NO!
-The overlay works on the level on key-values, it knows nothing of trie nodes, and to compute the root we have to go to the trie layer and pull a whole lot of data back from the disk and build all the nodes etc.
+The overlay works on the level on key-values, it knows nothing of trie nodes, and to compute the root we have to go to
+the trie layer and pull a whole lot of data back from the disk and build all the nodes etc.
 
 ---v
 
@@ -695,11 +741,11 @@ Notes:
 There are multiple implementations of `Externalities`:
 
 - [`TestExternalities`](https://paritytech.github.io/substrate/master/sp_state_machine/struct.TestExternalities.html):
-  - `Overlay`
-  - `TrieDb` with `InMemoryBackend`
+    - `Overlay`
+    - `TrieDb` with `InMemoryBackend`
 - [`Ext`](https://paritytech.github.io/substrate/master/sp_state_machine/struct.Ext.html) (the real thing 🫡)
-  - `Overlay`
-  - `TrieDb` with a real database being the backend
+    - `Overlay`
+    - `TrieDb` with a real database being the backend
 
 ---v
 
@@ -718,8 +764,8 @@ let x = sp_io::storage::get(b"foo");
 
 ```rust
 // ✅
-SomeExternalities.execute_with(|| {
-  let x = sp_io::storage::get(b"foo");
+SomeExternalities.execute_with(| | {
+let x = sp_io::storage::get(b"foo");
 });
 ```
 
@@ -832,10 +878,11 @@ Notes:
 
 - About state version:
 
-  - <https://github.com/paritytech/substrate/pull/9732>
-  - <https://github.com/paritytech/substrate/discussions/11824>
+    - <https://github.com/paritytech/substrate/pull/9732>
+    - <https://github.com/paritytech/substrate/discussions/11824>
 
-- An "old but gold" read about trie in Ethereum: <https://medium.com/shyft-network/understanding-trie-databases-in-ethereum-9f03d2c3325d>
+- An "old but gold" read about trie in
+  Ethereum: <https://medium.com/shyft-network/understanding-trie-databases-in-ethereum-9f03d2c3325d>
 
 - On optimizing substrate storage proofs: <https://github.com/paritytech/substrate/issues/3782>
 - Underlying trie library maintained by Parity: <https://github.com/paritytech/trie>
