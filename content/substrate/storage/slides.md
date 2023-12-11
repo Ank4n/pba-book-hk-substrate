@@ -85,6 +85,9 @@ Does that seem a good idea? Why or why not?
 - Concatenate all data and hash to get the root.
 - O(1) read and write.
 
+> Turns out, it is not really a good idea.
+<!-- .element: class="fragment" -->
+
 Notes:
 - "_Storage keys_" (whatever you pass to `sp_io::storage`) directly maps to "_database keys_".
 - Probably don't wanna introduce storage key and db key right now.
@@ -95,15 +98,7 @@ database.
 
 ---v
 
-## Key Value
-
-> Turns out, it is not really a good idea.
- 
-**Why?**
-
----v
-
-### Key Value
+### Key Value: Proof sizes 
 
 - Suppose there is a large database.
 - Alice has the state root of this database, wants to lookup her balance from this database.
@@ -119,9 +114,9 @@ Alice is representing a light client, I represent a full node.
 
 ---v
 
-### Key Value
+### Key Value: State Root
 
-- Moreover, if you change a single key-value, we need to re-hash the whole thing again to get the updated state root 🤦.
+- If you change a single key-value, we need to re-hash the whole thing again to get the updated state root 🤦.
 
 ---
 
@@ -349,8 +344,6 @@ Back to our question
 <img style="width: 1400px;" src="./img/dev-trie-backend-proof.svg" />
 
 Notes:
-
-// TODO(ank4n): Add color legends for the nodes..
 
 The important point is that for example the whole data under `_system` is not hidden away behind one hash.
 
@@ -639,7 +632,7 @@ Notes:
 
 ### Substrate Storage: Final Figure
 
-<img style="width: 1000px;" src="./img/dev-storage-full.svg" />
+<img style="width: 1000px;" src="./img/dev-storage-externalities-full.svg" />
 
 Notes:
 Should be Runtime on the top..
