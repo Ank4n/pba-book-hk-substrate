@@ -7,58 +7,15 @@ duration: 60mins
 
 ---
 
-## Overview
-
-- How substrate based chains store data.
-- Why blockchains/substrate merkelize storage?
-- Traversing the Trie.
-- Merkle Proofs.
-- Avoiding unbalanced Tree.
-- Caching state.
-- State pruning.
-
-Note:
-Expectation is at end of this lecture, student understands better what design considerations they need to take while
-storing state.
-
----
-
 ## What We Know So Far
 
 <img style="width: 900px;" src="./img/dev-storage-1.svg" />
 
 ---v
 
-### What We Know So Far
+#### What We Know So Far
 
-- Recall that at the `sp_io` layer (`substrate/primitives/io/`), you have **opaque keys and values**.
-
-```rust
-    let storage_key = vec![8, 2];
-    sp_io::storage::get(storage_key);
-    sp_io::storage::set(storage_key, vec![42, 33]);
-
-```
-
----v
-
-### What We Know So Far
-
-```rust
-  sp_io::TestExternalities::new_empty().execute_with(|| {
-        sp_io::storage::get(..);
-    });
-```
-
-Notes:
-
-- TestExternalities mimic a client.
-
----v
-
-### What We Know So Far
-
-Nomenclature (with some simplification):
+**Externalities**
 
 > Environment providing host functions, namely storage ones: "`Externalities` Environment".
 
@@ -77,11 +34,43 @@ Notes:
 
 <img style="width: 900px;" src="./img/dev-storage-2.svg" />
 
+---v
+
+### What We Know So Far
+
+- Recall that at the `sp_io` layer, you have **opaque keys and values**.
+
+```rust
+    let storage_key = vec![8, 2];
+    sp_io::storage::get(storage_key);
+    sp_io::storage::set(storage_key, vec![42, 33]);
+
+```
+
+Notes:
+- `substrate/primitives/io/`
+
+---v
+
+### What We Know So Far
+
+```rust 
+  sp_io::TestExternalities::new_empty().execute_with(|| {
+        sp_io::storage::get(..);
+    });
+```
+
+Notes:
+
+- TestExternalities mimic a client.
+
 ---
 
 ## Simple key value storage
 
-- How about a key-value storage externality? why not? 🙈 
+> All this seems to indicate our storage externality is a simple key value database.
+
+Does that seem a good idea? Why or why not?
 
 ---v
 
@@ -93,12 +82,12 @@ Notes:
 
 ### Key Value
 
-- "_Storage keys_" (whatever you pass to `sp_io::storage`) directly maps to "_database keys_".
-- O(1) read and write.
 - Concatenate all data and hash to get the root.
+- O(1) read and write.
 
 Notes:
-
+- "_Storage keys_" (whatever you pass to `sp_io::storage`) directly maps to "_database keys_".
+- Probably don't wanna introduce storage key and db key right now.
 Good time to hammer down what you mean by storage key and what you mean by database key.
 
 literally imagine that in the implementation of `sp_io::storage::set`, we write it to a key-value
@@ -108,16 +97,16 @@ database.
 
 ## Key Value
 
-Spoiler: In reality, substrate and most other blockchains merklize their storage.
+> Turns out, it is not really a good idea.
  
-> But Why?
+**Why?**
 
 ---v
 
 ### Key Value
 
 - Suppose there is a large database.
-- Alice wants to lookup her balance from this database.
+- Alice has the state root of this database, wants to lookup her balance from this database.
 - How can Alice verify the balance she receives from a full node is correct?
 
 SEND HER THE WHOLE DATABASE 😱.
@@ -280,7 +269,6 @@ Namely:
 
 - Substrate does in fact use a key-value based database under the hood.
 - But this KV based DB is used to store the trie nodes, not directly the storage keys.
-
 <br />
 
 <div>
@@ -322,7 +310,7 @@ simplification.
 
 ---
 
-## Trie Walking Example
+## Traversing the Trie
 
 - We know the state-root at a given block `n`.
 - Assume this is a base-26, patricia trie.
@@ -354,13 +342,15 @@ simplification.
 ## Merklized: Proofs
 
 Back to our question
-> If alice only has this root, how can she verify her balance is right?
+> If alice only has this state root, how can she verify her balance is correct?
 
 ---v
 
 <img style="width: 1400px;" src="./img/dev-trie-backend-proof.svg" />
 
 Notes:
+
+// TODO(ank4n): Add color legends for the nodes..
 
 The important point is that for example the whole data under `_system` is not hidden away behind one hash.
 
@@ -429,90 +419,7 @@ it will be `O(LOG_n)`.
 
 ---
 
-## Base 2, Base 16, Base-26?
-
-- Instead of alphabet, we use the base-16 representation of everything.
-
-> Base-16 (Patricia) Merkle Trie.
-
-- `System` -> `73797374656d`
-- `:code` -> `3a636f646500`
-
----v
-
-### Base 2, Base 16, Base-26?
-
-<img style="width: 1400px;" src="./img/dev-trie-backend-16.svg" />
-<!-- TODO: update figure to represent node size. -->
-
-Tradeoff: "_IO count vs. Node size_"
-
-<!-- .element: class="fragment" -->
-
-Between a light clint and a full node, which one cares more about which?
-
-<!-- .element: class="fragment" -->
-
-Notes:
-
-Light client cares about node size.
-When proof is being sent, there is no IO.
-
-First glance, the radix-8 seems better: you will typically have less DB access to reach a key.
-For example, with binary, with 3 IO, we can reach only 8 items, but with radix-8 512.
-
-So why should not choose a very wide tree?
-Because the wider you make the tree, the bigger each node gets, because it has to store more hashes.
-At some point, this start to screw with both the proof size and the cost of reading/writing/encoding/decoding all these
-nodes.
-
----v
-
-### Base 2, Base 16, Base-26?
-
-<img style="width: 1400px;" src="./img/dev-trie-backend-16-with-size.svg" />
-
-Note:
-
-Here's a different way to represent it; the nodes are bigger on the base-8 trie.
-
----v
-
-### Base 2, Base 16, Base-26?
-
-- base-2: Small proofs, more nodes.
-- base-26: Bigger proofs, less nodes.
-
-✅ 16 has been benchmarked and studies years ago as a good middle-ground.
-
-Notes:
-
-Anyone interested in blockchain and research stuff should look into this.
-
----
-
-### Unbalanced Tree
-
-<img style="width: 800px;" src="./img/dev-trie-backend-unbalanced.svg" />
-
----v
-
-### Unbalanced Tree
-
-- Unbalanced tree means unbalanced performance.
-  An attack vector, if done right.
-- More about this in FRAME storage, and how it is prevented there.
-
-Notes:
-
-- under-estimate weight/gas etc.
-- You as the runtime developer must ensure that you use the right keys.
-- This is particularly an issue if an end user can control where they can insert into the trie!
-- The main prevention is using a cryptographically secure hash function on the frame side.
-
----
-
-## WAIT A MINUTE... 🤔
+## Large data nodes 🤔
 
 - Two common scenarios that merkle proofs are kinda unfair:
     - If the one of the parent nodes has some large data.
@@ -524,9 +431,9 @@ Notes:
 
 ---v
 
-## WAIT A MINUTE... 🤔
+## Large data nodes 🤔
 
-New "tie format" 🌈:
+New "trie format" 🌈:
 
 - All data containing more than 32 bytes are replaced with their hash.
 - The (larger than 32 bytes) value itself stored in the database under this hash.
@@ -557,7 +464,7 @@ One can assume that the green node is like any other node in the trie.
 
 ---
 
-## WAIT A MINUTE... 🤔
+## Introducing a cache layer??? 🤔
 
 - We rarely care about state root and all the trie shenanigans before the end of the block...
 
@@ -571,7 +478,7 @@ In other words, one should care too much about updating a "trie" and all of its 
 being executed?
 All of that can be delayed.
 
----
+---v
 
 ## Overlay
 
@@ -734,6 +641,9 @@ Notes:
 
 <img style="width: 1000px;" src="./img/dev-storage-full.svg" />
 
+Notes:
+Should be Runtime on the top..
+
 ---v
 
 ### Substrate Storage
@@ -838,6 +748,89 @@ Notes:
 Notes:
 
 Meaning, if another client wants to sync polkadot, it should know the details of the trie format.
+
+---
+
+## Base 2, Base 16, Base-26?
+
+- Instead of alphabet, we use the base-16 representation of everything.
+
+> Base-16 (Patricia) Merkle Trie.
+
+- `System` -> `73797374656d`
+- `:code` -> `3a636f646500`
+
+---v
+
+### Base 2, Base 16, Base-26?
+
+<img style="width: 1400px;" src="./img/dev-trie-backend-16.svg" />
+<!-- TODO: update figure to represent node size. -->
+
+Tradeoff: "_IO count vs. Node size_"
+
+<!-- .element: class="fragment" -->
+
+Between a light client and a full node, who cares more about which?
+
+<!-- .element: class="fragment" -->
+
+Notes:
+
+Light client cares about node size.
+When proof is being sent, there is no IO.
+
+First glance, the radix-8 seems better: you will typically have less DB access to reach a key.
+For example, with binary, with 3 IO, we can reach only 8 items, but with radix-8 512.
+
+So why should not choose a very wide tree?
+Because the wider you make the tree, the bigger each node gets, because it has to store more hashes.
+At some point, this start to screw with both the proof size and the cost of reading/writing/encoding/decoding all these
+nodes.
+
+---v
+
+### Base 2, Base 16, Base-26?
+
+<img style="width: 1400px;" src="./img/dev-trie-backend-16-with-size.svg" />
+
+Note:
+
+Here's a different way to represent it; the nodes are bigger on the base-8 trie.
+
+---v
+
+### Base 2, Base 16, Base-26?
+
+- base-2: Small proofs, more nodes.
+- base-26: Bigger proofs, less nodes.
+
+✅ 16 has been benchmarked and studies years ago as a good middle-ground.
+
+Notes:
+
+Anyone interested in blockchain and research stuff should look into this.
+
+---
+
+### Unbalanced Tree
+
+<img style="width: 800px;" src="./img/dev-trie-backend-unbalanced.svg" />
+
+---v
+
+### Unbalanced Tree
+
+- Unbalanced tree means unbalanced performance.
+  An attack vector, if done right.
+- More about this in FRAME storage, and how it is prevented there.
+
+Notes:
+
+- under-estimate weight/gas etc.
+- You as the runtime developer must ensure that you use the right keys.
+- This is particularly an issue if an end user can control where they can insert into the trie!
+- The main prevention is using a cryptographically secure hash function on the frame side.
 
 ---
 
