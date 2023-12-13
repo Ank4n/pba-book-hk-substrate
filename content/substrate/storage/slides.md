@@ -161,28 +161,28 @@ flowchart TD
 <diagram class="mermaid">
 %%{init: {'theme': 'dark', 'themeVariables': { 'darkMode': true }}}%%
 flowchart TD
-  A["A \n value: Hash(B|C)"] -- a --> B["B \n value: Hash(B|E)"]
-  A --b--> C["C \n Hash(F) \n"]
-  B --c--> D["D \n value: 0x12"]
-  B --d--> E["E \n value: 0x23"]
-  C --e--> F["F \n value: 0x34"]
+  A["A \n value: Hash(B|C)"] -- v --> B["B \n value: Hash(B|E)"]
+  A --w--> C["C \n Hash(F) \n"]
+  B --"x"--> D["D \n value: 0x12"]
+  B --y--> E["E \n value: 0x23"]
+  C --z--> F["F \n value: 0x34"]
 </diagram>
 
 </pba-col>
 <pba-col>
 
-- Radix Trie.
+- Trie
 - Assuming only leafs have data, this is encoding:
 
 <table>
 <tr>
-  <td> "ac" => 0x12</td>
+  <td> "vx" => 0x12</td>
 </tr>
 <tr>
-  <td> "ad" => 0x23</td>
+  <td> "vy" => 0x23</td>
 </tr>
 <tr>
-  <td> "be" => 0x34</td>
+  <td> "wz" => 0x34</td>
 </tr>
 </table>
 
@@ -204,10 +204,10 @@ Notes:
 <diagram class="mermaid">
 %%{init: {'theme': 'dark', 'themeVariables': { 'darkMode': true }}}%%
 flowchart TD
-  A["A \n Hash(B|C)"] -- a --> B["B \n Hash(B|E)"]
-  A --be--> F["F \n value: 0x34"]
-  B --c--> D["D \n value: 0x12"]
-  B --d--> E["E \n value: 0x23"]
+  A["A \n Hash(B|C)"] -- v --> B["B \n Hash(B|E)"]
+  A --wz--> F["F \n value: 0x34"]
+  B --"x"--> D["D \n value: 0x12"]
+  B --y--> E["E \n value: 0x23"]
 </diagram>
 
 </pba-col>
@@ -218,13 +218,13 @@ flowchart TD
 
 <table>
 <tr>
-  <td> "ac" => 0x1234</td>
+  <td> "vx" => 0x12</td>
 </tr>
 <tr>
-  <td> "ad" => 0x1234</td>
+  <td> "vy" => 0x23</td>
 </tr>
 <tr>
-  <td> "be" => 0x1234</td>
+  <td> "wz" => 0x34</td>
 </tr>
 </table>
 
@@ -429,7 +429,7 @@ it will be `O(LOG_n)`.
 
 ## Large data nodes 🤔
 
-- Two common scenarios that merkle proofs are kinda unfair:
+- Two common problems that merkle proofs have:
     - If the one of the parent nodes has some large data.
     - If you want to prove the deletion/non-existence of a leaf node.
 
@@ -852,7 +852,7 @@ Anyone interested in blockchain and research stuff should look into this.
 - Merklized storage, and proofs
 - Large nodes
 - Radix order consequences
-- Unbalanced trie
+- Unbalanced tree
 - State pruning
 
 </pba-col>
