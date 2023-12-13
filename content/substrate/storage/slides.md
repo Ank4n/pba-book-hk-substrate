@@ -66,11 +66,9 @@ Notes:
 
 ---
 
-## Simple key value storage
+## Key Value
 
 > All this seems to indicate our storage externality is a simple key value database.
-
-Does that seem a good idea? Why or why not?
 
 ---v
 
@@ -85,7 +83,7 @@ Does that seem a good idea? Why or why not?
 - Concatenate all data and hash to get the root.
 - O(1) read and write.
 
-> Turns out, it is not really a good idea.
+> Spoiler, that is not how data is stored internally in the database.
 <!-- .element: class="fragment" -->
 
 Notes:
@@ -122,7 +120,7 @@ Alice is representing a light client, I represent a full node.
 
 ## Substrate Storage: Merklized
 
-> Substrate uses a base-16, (patricia) radix merkle trie.
+> Substrate uses a base-16, (patricia) radix merkle tree.
 
 Notes: 
 - Find the code at [paritytech/trie](https://github.com/paritytech/trie).
@@ -163,8 +161,8 @@ flowchart TD
 <diagram class="mermaid">
 %%{init: {'theme': 'dark', 'themeVariables': { 'darkMode': true }}}%%
 flowchart TD
-  A --b--> C["C \n Hash(F) \n"]
   A["A \n value: Hash(B|C)"] -- a --> B["B \n value: Hash(B|E)"]
+  A --b--> C["C \n Hash(F) \n"]
   B --c--> D["D \n value: 0x12"]
   B --d--> E["E \n value: 0x23"]
   C --e--> F["F \n value: 0x34"]
@@ -173,7 +171,7 @@ flowchart TD
 </pba-col>
 <pba-col>
 
-- Trie.
+- Radix Trie.
 - Assuming only leafs have data, this is encoding:
 
 <table>
@@ -316,9 +314,17 @@ simplification.
 
 <img style="width: 1400px;" src="./img/dev-trie-backend-walk-m1.svg" />
 
+Notes:
+- We start with the state root node.
+- Read its children.
+
 ---v
 
 <img style="width: 1400px;" src="./img/dev-trie-backend-walk-0.svg" />
+
+Notes:
+- We are interested in "balances_" so we read that node from database.
+- Did you notice the mistake in the slide? "_" technically would not be allowed in base-26, so it really is base-27. 
 
 ---v
 
@@ -331,6 +337,15 @@ simplification.
 ---v
 
 <img style="width: 1400px;" src="./img/dev-trie-backend-walk-full.svg" />
+
+---v
+
+## Traversing the Trie
+
+<img src="./img/dev-4-8-qr-radix-tree-visualization-cs.usfca.edu.png" />
+
+Try inserting (and deleting) bunch of keys and see how you fill up the trie in
+the [radix tree visualization](https://www.cs.usfca.edu/~galles/visualization/RadixTree.html).
 
 ---
 
@@ -428,7 +443,7 @@ it will be `O(LOG_n)`.
 
 New "trie format" 🌈:
 
-- All data containing more than 32 bytes are replaced with their hash.
+- All data containing more than 32 bytes are replaced with their hash (pointer to the actual value).
 - The (larger than 32 bytes) value itself stored in the database under this hash.
 
 ```rust
@@ -457,7 +472,28 @@ One can assume that the green node is like any other node in the trie.
 
 ---
 
-## Introducing a cache layer??? 🤔
+### Unbalanced Tree
+
+<img style="width: 800px;" src="./img/dev-trie-backend-unbalanced.svg" />
+
+---v
+
+### Unbalanced Tree
+
+- Unbalanced tree means unbalanced performance.
+  An attack vector, if done right.
+- More about this in FRAME storage, and how it is prevented there.
+
+Notes:
+
+- under-estimate weight/gas etc.
+- You as the runtime developer must ensure that you use the right keys.
+- This is particularly an issue if an end user can control where they can insert into the trie!
+- The main prevention is using a cryptographically secure hash function on the frame side.
+
+---
+
+## Trie Caching 🤔
 
 - We rarely care about state root and all the trie shenanigans before the end of the block...
 
@@ -803,27 +839,6 @@ Here's a different way to represent it; the nodes are bigger on the base-8 trie.
 Notes:
 
 Anyone interested in blockchain and research stuff should look into this.
-
----
-
-### Unbalanced Tree
-
-<img style="width: 800px;" src="./img/dev-trie-backend-unbalanced.svg" />
-
----v
-
-### Unbalanced Tree
-
-- Unbalanced tree means unbalanced performance.
-  An attack vector, if done right.
-- More about this in FRAME storage, and how it is prevented there.
-
-Notes:
-
-- under-estimate weight/gas etc.
-- You as the runtime developer must ensure that you use the right keys.
-- This is particularly an issue if an end user can control where they can insert into the trie!
-- The main prevention is using a cryptographically secure hash function on the frame side.
 
 ---
 
